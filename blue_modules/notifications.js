@@ -8,6 +8,7 @@ const PushNotification = require('react-native-push-notification');
 const constants = require('./constants');
 const PUSH_TOKEN = 'PUSH_TOKEN';
 const GROUNDCONTROL_BASE_URI = 'GROUNDCONTROL_BASE_URI';
+const NOTIFICATIONS_STORAGE = 'NOTIFICATIONS_STORAGE';
 let alreadyConfigured = false;
 let baseURI = constants.groundControlUri;
 
@@ -43,11 +44,26 @@ const configureNotifications = async function () {
       },
 
       // (required) Called when a remote is received or opened, or local notification is opened
-      onNotification: function (notification) {
+      onNotification: async function (notification) {
         console.log('NOTIFICATION:', notification);
 
-        // process the notification
-        PushNotification.setApplicationIconBadgeNumber(0); // always reset badges to zero
+        // since we do not know whether we:
+        // 1) received notification while app is in background (and storage is not decrypted so wallets are not loaded)
+        // 2) opening this notification right now but storage is still unencrypted
+        // 3) any of the above but the storage is decrypted, and app wallets are loaded
+        //
+        // ..we save notification in internal notifications queue thats gona be processed later (after startAndDecrypt
+        // for example, of on unsuspend with decrypted storage)
+
+        let notifications = [];
+        try {
+          const stringified = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE);
+          notifications = JSON.parse(stringified);
+          if (!Array.isArray(notifications)) notifications = [];
+
+          notifications.push(notification);
+          await AsyncStorage.setItem(NOTIFICATIONS_STORAGE, JSON.stringify(notifications));
+        } catch (_) {}
 
         // (required) Called when a remote is received or opened, or local notification is opened
         notification.finish(PushNotificationIOS.FetchResult.NoData);
@@ -309,6 +325,17 @@ const getLevels = async function () {
   return response.body;
 };
 
+const getStoredNotifications = async function () {
+  let notifications = [];
+  try {
+    const stringified = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE);
+    notifications = JSON.parse(stringified);
+    if (!Array.isArray(notifications)) notifications = [];
+  } catch (_) {}
+
+  return notifications;
+};
+
 // on app launch (load module):
 (async () => {
   // first, fetching to see if app uses custom GroundControl server, not the default one
@@ -339,3 +366,4 @@ module.exports.getSavedUri = getSavedUri;
 module.exports.getPushToken = getPushToken;
 module.exports.checkPermissions = checkPermissions;
 module.exports.setLevels = setLevels;
+module.exports.getStoredNotifications = getStoredNotifications;
