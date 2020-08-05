@@ -45,7 +45,7 @@ const configureNotifications = async function () {
 
       // (required) Called when a remote is received or opened, or local notification is opened
       onNotification: async function (notification) {
-        console.log('NOTIFICATION:', notification);
+        console.warn('NOTIFICATION:', notification);
 
         // since we do not know whether we:
         // 1) received notification while app is in background (and storage is not decrypted so wallets are not loaded)
@@ -336,6 +336,12 @@ const getStoredNotifications = async function () {
   return notifications;
 };
 
+const clearStoredNotifications = async function () {
+  try {
+    await AsyncStorage.setItem(NOTIFICATIONS_STORAGE, JSON.stringify([]));
+  } catch (_) {}
+};
+
 // on app launch (load module):
 (async () => {
   // first, fetching to see if app uses custom GroundControl server, not the default one
@@ -367,3 +373,4 @@ module.exports.getPushToken = getPushToken;
 module.exports.checkPermissions = checkPermissions;
 module.exports.setLevels = setLevels;
 module.exports.getStoredNotifications = getStoredNotifications;
+module.exports.clearStoredNotifications = clearStoredNotifications;
