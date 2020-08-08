@@ -122,22 +122,24 @@ export default class App extends React.Component {
   /**
    * Processes push notifications stored in AsyncStorage. Might navigate to some screen.
    *
-   * @returns {Promise<boolean>} returns TRUE if notification was processed and _acted_ upon, i.e. navigatino happened
+   * @returns {Promise<boolean>} returns TRUE if notification was processed _and acted_ upon, i.e. navigation happened
    * @private
    */
   async _processPushNotifications() {
+    notifications.setApplicationIconBadgeNumber(0);
     await new Promise(resolve => setTimeout(resolve, 500));
     // sleep needed as sometimes unsuspend is faster than notification module actually saves notifications to async storage
     const notifications2process = await notifications.getStoredNotifications();
     console.warn('APP_UNSUSPENDED; notifications2process: ', notifications2process.length);
     for (const notif of notifications2process) {
-      const wasTapped = notif.foreground === false || (notif.foreground === true && notif.userInteraction === true);
-      // if (Platform.OS === 'ios' && notif.foreground === true && notif.userInteraction === false) wasTapped = true; // iOS hack
+      let wasTapped = notif.foreground === false || (notif.foreground === true && notif.userInteraction === true);
+      if (Platform.OS === 'ios' && notif.foreground === true && notif.userInteraction === false) wasTapped = true; // iOS hack
       if (!wasTapped) continue;
 
       const payload = Object.assign({}, notif, notif.data);
       if (notif.data && notif.data.data) Object.assign(payload, notif.data.data);
       delete payload.data;
+      // ^^^ weird, but sometimes payload data is not in `data` but in root level
 
       console.warn('GOTTA PROCESS: ', payload);
       let wallet;

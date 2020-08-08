@@ -1,7 +1,7 @@
 import PushNotificationIOS from '@react-native-community/push-notification-ios';
 import { Alert, Platform } from 'react-native';
 import Frisbee from 'frisbee';
-import { isEmulatorSync } from 'react-native-device-info';
+import { getApplicationName, getVersion, getSystemName, isEmulatorSync, getSystemVersion } from 'react-native-device-info';
 import AsyncStorage from '@react-native-community/async-storage';
 import loc from '../loc';
 const PushNotification = require('react-native-push-notification');
@@ -289,16 +289,18 @@ const setLevels = async function (levelAll) {
 
   const api = new Frisbee({ baseURI });
 
-  return await api.post(
-    '/setTokenConfiguration',
-    Object.assign({}, _getHeaders(), {
-      body: {
-        level_all: !!levelAll,
-        token: pushToken.token,
-        os: pushToken.os,
-      },
-    }),
-  );
+  try {
+    await api.post(
+      '/setTokenConfiguration',
+      Object.assign({}, _getHeaders(), {
+        body: {
+          level_all: !!levelAll,
+          token: pushToken.token,
+          os: pushToken.os,
+        },
+      }),
+    );
+  } catch (_) {}
 };
 
 /**
@@ -336,10 +338,38 @@ const getStoredNotifications = async function () {
   return notifications;
 };
 
+const postTokenConfig = async function () {
+  const pushToken = await getPushToken();
+  if (!pushToken || !pushToken.token || !pushToken.os) return;
+
+  const lang = (await AsyncStorage.getItem('lang')) || 'en';
+  const appVersion = getSystemName() + ' ' + getSystemVersion() + ';' + getApplicationName() + ' ' + getVersion();
+
+  const api = new Frisbee({ baseURI });
+
+  try {
+    await api.post(
+      '/setTokenConfiguration',
+      Object.assign({}, _getHeaders(), {
+        body: {
+          token: pushToken.token,
+          os: pushToken.os,
+          lang,
+          app_version: appVersion,
+        },
+      }),
+    );
+  } catch (_) {}
+};
+
 const clearStoredNotifications = async function () {
   try {
     await AsyncStorage.setItem(NOTIFICATIONS_STORAGE, JSON.stringify([]));
   } catch (_) {}
+};
+
+const setApplicationIconBadgeNumber = function (badges) {
+  PushNotification.setApplicationIconBadgeNumber(badges);
 };
 
 // on app launch (load module):
@@ -353,12 +383,13 @@ const clearStoredNotifications = async function () {
   } catch (_) {}
 
   // every launch should clear badges:
-  PushNotification.setApplicationIconBadgeNumber(0);
+  setApplicationIconBadgeNumber(0);
 
   if (!(await getPushToken())) return;
   // if we previously had token that means we already acquired permission from the user and it is safe to call
   // `configure` to register callbacks etc
   await configureNotifications();
+  await postTokenConfig();
 })();
 
 module.exports.tryToObtainPermissions = tryToObtainPermissions;
@@ -374,3 +405,4 @@ module.exports.checkPermissions = checkPermissions;
 module.exports.setLevels = setLevels;
 module.exports.getStoredNotifications = getStoredNotifications;
 module.exports.clearStoredNotifications = clearStoredNotifications;
+module.exports.setApplicationIconBadgeNumber = setApplicationIconBadgeNumber;
